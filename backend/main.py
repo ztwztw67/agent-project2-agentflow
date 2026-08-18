@@ -8,7 +8,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
-from backend.routers import auth
+from backend.routers import auth, chat
+from backend.routers import auth, chat, rag
 from backend.middleware.log import LogMiddleware
 
 
@@ -20,9 +21,28 @@ async def lifespan(app: FastAPI):
     print(f"🚀 {settings.app_name} 启动中...")
     print(f"   环境: {settings.app_env}")
     print(f"   LLM: {settings.llm_model} @ {settings.openai_base_url}")
+
+    # 初始化 MCP Client + Agent Graph（全局单例，所有请求复用）
+    from mcp_servers.mcp_client import get_mcp_client
+    from agents.agent_graph import build_agent_graph
+
+    mcp_client = await get_mcp_client()
+    tools = mcp_client.get_tool_meta()
+    print(f"   MCP: {len(tools)} 个工具已连接 ({[t['name'] for t in tools]})")
+
+    graph = await build_agent_graph()
+    print(f"   Agent Graph: 已编译 (nodes={list(graph.nodes.keys())})")
+
+    # 挂到 app.state 上，路由中通过 request.app.state 访问
+    app.state.mcp_client = mcp_client
+    app.state.agent_graph = graph
+
     yield  # ← 应用在这里运行
+
     # ===== 关闭时执行 =====
-    print("👋 正在关闭...")
+    print("👋 正在关闭 MCP 连接...")
+    await mcp_client.close()
+    print("👋 已关闭")
 
 
 # 创建 FastAPI 应用 —— 这是整个后端的"大脑"
@@ -49,12 +69,12 @@ app.add_middleware(LogMiddleware)
 
 # ===== 路由注册 =====
 # prefix="/auth" 意味着 auth.router 里的所有路径都自动加上 /auth
-# 比如 @router.post("/register") 的实际访问路径是 POST /auth/register
 app.include_router(auth.router, prefix="/auth", tags=["认证"])
 
-# 后续添加新模块只需加一行：
-# app.include_router(chat.router, prefix="/chat", tags=["聊天"])
-# app.include_router(rag.router, prefix="/rag", tags=["RAG"])
+# /api/chat —— Agent 对话接口
+app.include_router(chat.router, prefix="/api", tags=["Agent 对话"])
+
+app.include_router(rag.router, prefix="/rag", tags=["知识库"])
 
 
 # ===== 基础接口 =====

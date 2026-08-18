@@ -64,6 +64,22 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str = "high"  # v4-pro 推理深度：low / medium / high
     llm_thinking: str = "enabled"  # enabled = 开启思维链，disabled = 直出答案
 
+    # ========== LangFuse 可观测性 ==========
+    langfuse_public_key: Optional[str] = None
+    langfuse_secret_key: Optional[str] = None
+    langfuse_host: str = "https://cloud.langfuse.com"
+
+    # ========== Tavily 搜索 API ==========
+    tavily_api_key: Optional[str] = None
+
+    # ========== MCP Server 配置 ==========
+    mcp_search_docs_command: str = "python"
+    mcp_search_docs_args: str = "mcp_servers/search_docs_server.py"
+
+    # ========== Agent 配置 ==========
+    agent_max_iterations: int = 5
+    agent_session_timeout: int = 3600  # 1 小时超时
+
 
 # 全局唯一实例 —— 其他模块统一 from backend.config import settings
 settings = Settings()
